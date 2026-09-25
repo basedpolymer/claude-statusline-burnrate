@@ -3,6 +3,9 @@
 # weekly-limit math: real rate_limits data, today's share of the week,
 # sustainable burn rate, sleep-aware pacing. Every meter color-coded.
 #
+# CLASSIC EDITION: the original one-line layout (v1). The default status line
+# is now the two-row card in statusline.sh — same math, boxed.
+#
 # Renders:  🦄 Model effort │ 🎯 wk% today%t pace%/d trend │ 🧠 ctx% +add/-rem │ 🔥 5h% reset │ pet
 #   🦄/🎭/🪶/🌸 = model mascot: Fable unicorn, Opus theater, Sonnet quill, Haiku blossom
 #   │        = dim group separators: model │ weekly │ session │ 5h │ pet
@@ -82,7 +85,7 @@ if { [ -z "$r5" ] || [ -z "$r7" ]; } && [ -x "$AGY" ] && command -v python3 >/de
   mkdir -p "$HOME/.claude/.cache" 2>/dev/null
   QCACHE="$HOME/.claude/.cache/agy-quota.cache"
   now_ts=$(date +%s)
-  last_mod=$(stat -f %m "$QCACHE" 2>/dev/null || stat -c %Y "$QCACHE" 2>/dev/null || echo 0)
+  last_mod=$(stat -c %Y "$QCACHE" 2>/dev/null || stat -f %m "$QCACHE" 2>/dev/null || echo 0)
   if [ $(( now_ts - last_mod )) -ge "${SL_AGY_TTL:-180}" ]; then
     touch "$QCACHE" 2>/dev/null  # claim this refresh: no stampede of parallel agy calls
     (
@@ -104,7 +107,9 @@ for is_gemini, tag in [(True, "gemini"), (False, "other")]:
         if m_5h:
             r5 = str(100 - int(m_5h.group(1)))
             r5reset = str(int(datetime.datetime.fromisoformat(m_5h.group(2).replace("Z", "+00:00")).timestamp()))
-    print(f"{tag} {r5} {r5reset} {r7} {r7reset}")
+    # "-" holds an empty slot: bash `read` would collapse a bare gap and shift
+    # the weekly figures into the 5h fields
+    print(tag, *[v or "-" for v in (r5, r5reset, r7, r7reset)])
 ' <<< "$out" > "$QCACHE.tmp" 2>/dev/null && mv -f "$QCACHE.tmp" "$QCACHE" 2>/dev/null
       fi
     ) >/dev/null 2>&1 &
@@ -116,10 +121,10 @@ for is_gemini, tag in [(True, "gemini"), (False, "other")]:
     esac
     while read -r tag qr5 qr5reset qr7 qr7reset; do
       if [ "$tag" = "$model_type" ]; then
-        [ -z "$r5" ] && r5="$qr5"
-        [ -z "$r5reset" ] && r5reset="$qr5reset"
-        [ -z "$r7" ] && r7="$qr7"
-        [ -z "$r7reset" ] && r7reset="$qr7reset"
+        [ -z "$r5" ] && [ "$qr5" != "-" ] && r5="$qr5"
+        [ -z "$r5reset" ] && [ "$qr5reset" != "-" ] && r5reset="$qr5reset"
+        [ -z "$r7" ] && [ "$qr7" != "-" ] && r7="$qr7"
+        [ -z "$r7reset" ] && [ "$qr7reset" != "-" ] && r7reset="$qr7reset"
       fi
     done < "$QCACHE"
   fi
