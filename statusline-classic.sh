@@ -60,19 +60,25 @@ input=$(cat)
 # One jq pass extracts every field, joined by US (0x1f) and read with IFS=$'\x1f'.
 # NOT tab: tab is IFS-whitespace, so `read` would collapse empty fields and
 # misalign everything after a missing value (empty dir, or no rate_limits on older CC).
-IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost < <(echo "$input" | jq -r '
+IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost tier is_agy < <(echo "$input" | jq -r '
+  def is_gemini: (.model.display_name // .model.id // "" | test("gemini"; "i"));
+  def is_agy_host: (.product == "antigravity" or .quota != null or (.model.display_name // "" | test("gemini"; "i")));
+  def q_5h: if is_gemini then .quota["gemini-5h"] else .quota["3p-5h"] end;
+  def q_wk: if is_gemini then .quota["gemini-weekly"] else .quota["3p-weekly"] end;
   [ .workspace.current_dir // .cwd // "",
-    .model.display_name // "",
-    (.context_window.used_percentage      // "" | tostring),
-    (.rate_limits.five_hour.used_percentage // "" | tostring),
-    (.rate_limits.five_hour.resets_at       // "" | tostring),
-    (.rate_limits.seven_day.used_percentage // "" | tostring),
-    (.rate_limits.seven_day.resets_at       // "" | tostring),
-    (.effort.level // ""),
+    .model.display_name // .model.id // "",
+    (.context_window.used_percentage        // "" | tostring),
+    (.rate_limits.five_hour.used_percentage // (if q_5h.remaining_fraction != null then ((1 - q_5h.remaining_fraction) * 100) else "" end) // "" | tostring),
+    (.rate_limits.five_hour.resets_at       // (if q_5h.reset_in_seconds != null then (now + q_5h.reset_in_seconds | floor) else "" end) // "" | tostring),
+    (.rate_limits.seven_day.used_percentage // (if q_wk.remaining_fraction != null then ((1 - q_wk.remaining_fraction) * 100) else "" end) // "" | tostring),
+    (.rate_limits.seven_day.resets_at       // (if q_wk.reset_in_seconds != null then (now + q_wk.reset_in_seconds | floor) else "" end) // "" | tostring),
+    (.effort.level // .model.effort // ""),
     (.cost.total_lines_added   // 0 | tostring),
     (.cost.total_lines_removed // 0 | tostring),
     (.session_id // ""),
-    (.cost.total_cost_usd // "" | tostring) ] | join("")')
+    (.cost.total_cost_usd // "" | tostring),
+    (.plan_tier // ""),
+    (if is_agy_host then "1" else "0" end) ] | join("")')
 
 # ---- Antigravity CLI (agy) fallback: quota from a cached `agy -p "/usage"` --
 # agy runs this same script as its statusLine but its payload has no
@@ -249,7 +255,7 @@ frac=0
 TICKF="$HOME/.claude/.cache/sl-tick"
 if [ -n "$r7" ] && [ -n "$sid" ] && [ -n "$cost" ]; then
   tu=""; tsid=""; tc=""; tk=""
-  read -r tu tsid tc tk 2>/dev/null < "$TICKF"
+  read -r tu tsid tc tk 2>/dev/null < "$TICKF" || true
   tick=$(awk -v u="$r7" -v c="$cost" -v sid="$sid" -v tu="$tu" -v tsid="$tsid" -v tc="$tc" -v tk="$tk" 'BEGIN{
     k = tk+0; if (k < 1 || k > 20) k = 4.5
     if (tu == "" || u+0 != tu+0 || sid != tsid) {

@@ -71,15 +71,19 @@ input=$(cat)
 # One jq pass extracts every field, joined by US (0x1f) and read with IFS=$'\x1f'.
 # NOT tab: tab is IFS-whitespace, so `read` would collapse empty fields and
 # misalign everything after a missing value (empty dir, or no rate_limits on older CC).
-IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost x200k durms ctok cwsz < <(echo "$input" | jq -r '
+IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost x200k durms ctok cwsz tier is_agy < <(echo "$input" | jq -r '
+  def is_gemini: (.model.display_name // .model.id // "" | test("gemini"; "i"));
+  def is_agy_host: (.product == "antigravity" or .quota != null or (.model.display_name // "" | test("gemini"; "i")));
+  def q_5h: if is_gemini then .quota["gemini-5h"] else .quota["3p-5h"] end;
+  def q_wk: if is_gemini then .quota["gemini-weekly"] else .quota["3p-weekly"] end;
   [ .workspace.current_dir // .cwd // "",
-    .model.display_name // "",
-    (.context_window.used_percentage      // "" | tostring),
-    (.rate_limits.five_hour.used_percentage // "" | tostring),
-    (.rate_limits.five_hour.resets_at       // "" | tostring),
-    (.rate_limits.seven_day.used_percentage // "" | tostring),
-    (.rate_limits.seven_day.resets_at       // "" | tostring),
-    (.effort.level // ""),
+    .model.display_name // .model.id // "",
+    (.context_window.used_percentage        // "" | tostring),
+    (.rate_limits.five_hour.used_percentage // (if q_5h.remaining_fraction != null then ((1 - q_5h.remaining_fraction) * 100) else "" end) // "" | tostring),
+    (.rate_limits.five_hour.resets_at       // (if q_5h.reset_in_seconds != null then (now + q_5h.reset_in_seconds | floor) else "" end) // "" | tostring),
+    (.rate_limits.seven_day.used_percentage // (if q_wk.remaining_fraction != null then ((1 - q_wk.remaining_fraction) * 100) else "" end) // "" | tostring),
+    (.rate_limits.seven_day.resets_at       // (if q_wk.reset_in_seconds != null then (now + q_wk.reset_in_seconds | floor) else "" end) // "" | tostring),
+    (.effort.level // .model.effort // ""),
     (.cost.total_lines_added   // 0 | tostring),
     (.cost.total_lines_removed // 0 | tostring),
     (.session_id // ""),
@@ -87,7 +91,9 @@ IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost 
     (.exceeds_200k_tokens // .context_window.exceeds_200k_tokens // false | tostring),
     (.cost.total_duration_ms // 0 | tostring),
     (.context_window.total_input_tokens  // "" | tostring),
-    (.context_window.context_window_size // "" | tostring) ] | join("")')
+    (.context_window.context_window_size // "" | tostring),
+    (.plan_tier // ""),
+    (if is_agy_host then "1" else "0" end) ] | join("")')
 
 # ---- Antigravity CLI (agy) fallback: quota from a cached `agy -p "/usage"` --
 # agy runs this same script as its statusLine but its payload has no
@@ -95,7 +101,8 @@ IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost 
 # /usage report instead. The call is slow, so it refreshes in the BACKGROUND
 # at most every SL_AGY_TTL seconds; this render reads the last cached result.
 # Gemini and Claude/GPT models have separate quotas: pick by model name.
-agyq=""   # set once agy's cached quota is in use (no Claude status then)
+agyq=""
+[ "$is_agy" = "1" ] && agyq=1   # skip Claude status checks under Antigravity CLI
 AGY="${SL_AGY_BIN:-$(command -v agy 2>/dev/null || echo "$HOME/.local/bin/agy")}"
 if { [ -z "$r5" ] || [ -z "$r7" ]; } && [ -x "$AGY" ] && command -v python3 >/dev/null 2>&1; then
   QCACHE="$CACHE/agy-quota.cache"
@@ -305,7 +312,7 @@ frac=0
 TICKF="$CACHE/sl-tick"
 if [ -n "$r7" ] && [ -n "$sid" ] && [ -n "$cost" ]; then
   tu=""; tsid=""; tc=""; tk=""
-  read -r tu tsid tc tk 2>/dev/null < "$TICKF"
+  read -r tu tsid tc tk 2>/dev/null < "$TICKF" || true
   tick=$(awk -v u="$r7" -v c="$cost" -v sid="$sid" -v tu="$tu" -v tsid="$tsid" -v tc="$tc" -v tk="$tk" 'BEGIN{
     k = tk+0; if (k < 1 || k > 20) k = 4.5
     if (tu == "" || u+0 != tu+0 || sid != tsid) {
@@ -449,6 +456,16 @@ fi
 # ---- session wall-clock duration -------------------------------------------
 dur=""
 mins=$(( ${durms:-0} / 60000 ))
+if [ "$mins" -le 0 ] && [ -n "$sid" ]; then
+  SESSF="$CACHE/sess_${sid}"
+  if [ ! -f "$SESSF" ]; then date +%s > "$SESSF" 2>/dev/null; fi
+  st=$(cat "$SESSF" 2>/dev/null)
+  case "$st" in
+    ''|*[!0-9]*) ;;
+    *) now_s=$(date +%s)
+       [ "$now_s" -ge "$st" ] && mins=$(( (now_s - st) / 60 )) ;;
+  esac
+fi
 if   [ "$mins" -ge 60 ]; then dur="$(( mins / 60 ))h$(( mins % 60 ))m"
 elif [ "$mins" -ge 1 ];  then dur="${mins}m"; fi
 
@@ -557,9 +574,12 @@ if [ "$(( ttodo + tprog + tblock ))" -gt 0 ]; then
   tcell="📋 ${ttodo}☐"; tlen=$(( 4 + ${#ttodo} ))
   [ "$tprog" -gt 0 ]  && { tcell="$tcell ${NEU}${tprog}▶${RST}"; tlen=$(( tlen + 2 + ${#tprog} )); }
   [ "$tblock" -gt 0 ] && { tcell="$tcell ${RED}${tblock}⛔${RST}"; tlen=$(( tlen + 3 + ${#tblock} )); }
-else
-  costd=""; [ -n "$cost" ] && costd=$(printf '$%.2f' "$cost" 2>/dev/null)
+elif [ -n "$cost" ]; then
+  costd=$(printf '$%.2f' "$cost" 2>/dev/null)
   [ -n "$costd" ] && { tcell="💵 ${costd}"; tlen=$(( 3 + ${#costd} )); }
+elif [ -n "$tier" ]; then
+  tname="${tier#Google }"
+  tcell="${DIM}✦${RST} ${NEU}${tname}${RST}"; tlen=$(( 2 + ${#tname} ))
 fi
 ca=(); cb=(); la=(); lb=()
 if [ -n "$r7" ]; then

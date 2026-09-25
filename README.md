@@ -94,9 +94,9 @@ Then add to `~/.gemini/antigravity-cli/settings.json`:
 }
 ```
 
-agy's payload carries no `rate_limits`, so the script falls back to `agy -p "/usage"`: parsed with `python3`, refreshed in the background every 3 min, and cached in `~/.claude/.cache/agy-quota.cache`. Gemini models use the Gemini quota, Claude/GPT models the other one. The effort comes from the model name (`Gemini 3.8 Flash (High)`), and Gemini Flash, Gemini Pro and GPT get their own colors (plus a mascot in the classic line: ⚡ ✨ 🪐).
+Antigravity CLI (agy v1.2+) sends server-side quota directly via `.quota` in the statusLine payload, so the script reads it natively in pure bash + jq on every render — zero background subshells, zero lag, exact floating-point precision. On older agy releases where `.quota` is absent, it transparently falls back to parsing `agy -p "/usage"` cached in the background every 3 min (`~/.claude/.cache/agy-quota.cache`). Gemini models track the Gemini quota, Claude/GPT models the 3p quota. Effort is detected automatically (`.model.effort` or `(High)`), Gemini Flash, Gemini Pro and GPT get dedicated color palettes (and mascots in the classic line: ⚡ ✨ 🪐), and the plan tier appears cleanly in the card (e.g. `✦ AI Pro`).
 
-In Claude Code, `rate_limits` are present, so the fallback never runs.
+In Claude Code, native `rate_limits` are present, so neither fallback is ever triggered.
 
 ## Tweak
 
