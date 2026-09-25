@@ -108,7 +108,7 @@ case "$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]')" in
   *sonnet*) MHUES=(21 27 33 39 45 51 45 39) ;;
   *fable*)  MHUES=(93 99 135 141 177 201 171 135) ;;
   *haiku*)  MHUES=(22 28 34 40 46 82 118 46) ;;
-  *flash*)  MHUES=(39 45 51 81 117 123 51 45) ;;
+  *flash*)  MHUES=(32 33 68 74 75 111 75 68) ;;
   *gpt*)    MHUES=(34 40 46 82 118 82 46 40) ;;
   *pro*)    MHUES=(27 33 63 99 135 171 135 99) ;;
   *gemini*) MHUES=(27 33 39 69 75 99 135 141) ;;
