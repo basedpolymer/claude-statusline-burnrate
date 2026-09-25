@@ -104,15 +104,15 @@ fn=$(cat "$FRAMEF" 2>/dev/null); case "$fn" in ''|*[!0-9]*) fn=0 ;; esac
 fn=$(( fn + 1 )); printf '%s' "$fn" > "$FRAMEF" 2>/dev/null
 
 case "$(printf '%s' "$model" | tr '[:upper:]' '[:lower:]')" in
-  *opus*)   MHUES=(196 202 208 214 220 226 214 208) ;;
-  *sonnet*) MHUES=(21 27 33 39 45 51 45 39) ;;
-  *fable*)  MHUES=(93 99 135 141 177 201 171 135) ;;
-  *haiku*)  MHUES=(22 28 34 40 46 82 118 46) ;;
-  *flash*)  MHUES=(32 33 68 74 75 111 75 68) ;;
-  *gpt*)    MHUES=(34 40 46 82 118 82 46 40) ;;
-  *pro*)    MHUES=(27 33 63 99 135 171 135 99) ;;
-  *gemini*) MHUES=(27 33 39 69 75 99 135 141) ;;
-  *)        MHUES=(196 208 226 46 51 33 201 129) ;;
+  *opus*)   MHUES=(196 202 208 214 220 226 214 208); memoji="🎭" ;;
+  *sonnet*) MHUES=(21 27 33 39 45 51 45 39);         memoji="🪶" ;;
+  *fable*)  MHUES=(93 99 135 141 177 201 171 135);   memoji="🦄" ;;
+  *haiku*)  MHUES=(22 28 34 40 46 82 118 46);        memoji="🌸" ;;
+  *flash*)  MHUES=(32 33 68 74 75 111 75 68);        memoji="⚡" ;;
+  *gpt*)    MHUES=(34 40 46 82 118 82 46 40);        memoji="🪐" ;;
+  *pro*)    MHUES=(27 33 63 99 135 171 135 99);      memoji="✨" ;;
+  *gemini*) MHUES=(27 33 39 69 75 99 135 141);       memoji="✨" ;;
+  *)        MHUES=(196 208 226 46 51 33 201 129);    memoji="🤖" ;;
 esac
 case "$eff" in
   low)       effc="$NEU" ;;
@@ -375,7 +375,15 @@ for (( i=0; i<n; i++ )); do
 done
 
 tt=""; ttl=0
-if [ -n "$model" ]; then tt="$(rainbow "$model")"; ttl=${#model}; fi
+if [ -n "$model" ]; then
+  if [ -n "$memoji" ]; then
+    tt="${memoji} $(rainbow "$model")"
+    ttl=$(( 3 + ${#model} ))
+  else
+    tt="$(rainbow "$model")"
+    ttl=${#model}
+  fi
+fi
 if [ -n "$eff" ]; then tt="${tt:+$tt ${BX}·${RST} }${effc}${eff}${RST}"; ttl=$(( ttl + 3 + ${#eff} )); fi
 inner=$(( tw + 2 ))
 
