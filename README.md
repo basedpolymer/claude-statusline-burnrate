@@ -15,7 +15,7 @@
 
 Real server-side `rate_limits` — the same numbers `/usage` shows — answers what you actually want: **am I ok, and how hard can I push?** Pure bash + jq. No node, no daemons, no estimates.
 
-The pacing math counts awake hours, so the trend doesn't fall "behind" every night while you sleep.
+The pacing math counts awake hours, so the trend doesn't fall "behind" every night while you sleep. And the colors stay gray until something needs you: only a meter that has actually warmed up gets to pull your eye.
 
 ## Install
 
@@ -50,9 +50,33 @@ Then add to `~/.claude/settings.json`:
 
 Open a new session. That's it.
 
+## Try it first
+
+```bash
+git clone https://github.com/Gui-Gou/claude-statusline-burnrate && cd claude-statusline-burnrate
+./demo.sh             # the four states below, fake data
+./demo.sh --live      # animated tour: meters sweep, models cycle
+./demo.sh --classic   # the one-line v1
+```
+
+![states](assets/states.png)
+
+## Prefer one line?
+
+v1 is still here as `statusline-classic.sh`: same math, one row, emoji labels and an animated cat whose mood follows the worst meter.
+
+![classic one-liner](assets/classic.png)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Gui-Gou/claude-statusline-burnrate/main/statusline-classic.sh -o ~/.claude/statusline.sh
+chmod +x ~/.claude/statusline.sh
+```
+
+Upgrading from v1: re-running the install gives you the card. The card is about 65 columns wide, so on a narrow terminal the classic line fits better.
+
 ## Antigravity CLI (`agy`)
 
-The same script works as the status line of Google's Antigravity CLI. Needs `jq`, `python3` and `agy`.
+Both scripts also work as the status line of Google's Antigravity CLI. Needs `jq`, `python3` and `agy`.
 
 Already installed for Claude Code? Skip the download and just add the setting below. Otherwise:
 
@@ -70,24 +94,9 @@ Then add to `~/.gemini/antigravity-cli/settings.json`:
 }
 ```
 
-agy's payload carries no `rate_limits`, so the script falls back to `agy -p "/usage"`: parsed with `python3`, refreshed in the background every 3 min, and cached in `~/.claude/.cache/agy-quota.cache`. Gemini models use the Gemini quota, Claude/GPT models the other one. The effort comes from the model name (`Gemini 3.8 Flash (High)`), and Gemini Flash ⚡, Gemini Pro ✨ and GPT 🪐 get their own mascot and colors.
-
-| Variable | Default | |
-|---|---|---|
-| `SL_AGY_BIN` | `agy` on `PATH`, else `~/.local/bin/agy` | Path to the agy binary |
-| `SL_AGY_TTL` | `180` | Seconds between background `/usage` refreshes |
+agy's payload carries no `rate_limits`, so the script falls back to `agy -p "/usage"`: parsed with `python3`, refreshed in the background every 3 min, and cached in `~/.claude/.cache/agy-quota.cache`. Gemini models use the Gemini quota, Claude/GPT models the other one. The effort comes from the model name (`Gemini 3.8 Flash (High)`), and Gemini Flash, Gemini Pro and GPT get their own colors (plus a mascot in the classic line: ⚡ ✨ 🪐).
 
 In Claude Code, `rate_limits` are present, so the fallback never runs.
-
-## Try it first
-
-```bash
-git clone https://github.com/Gui-Gou/claude-statusline-burnrate && cd claude-statusline-burnrate
-./demo.sh          # the four states below, fake data
-./demo.sh --live   # animated
-```
-
-![states](assets/states.png)
 
 ## Tweak
 
@@ -95,8 +104,12 @@ git clone https://github.com/Gui-Gou/claude-statusline-burnrate && cd claude-sta
 |---|---|---|
 | `SL_DAY_START` | `2` | Hour your day flips (2 = 2am) |
 | `SL_SLEEP_HOURS` | `6` | Hours after that spent asleep — zero-weight in the pacing math |
+| `SL_STATUS` | `1` | `0` stops the background check of status.claude.com (a 🔥 appears only during an incident) |
+| `SL_TASKS` | `0` | `1` counts open / in-progress / blocked items in `project-management/TASKS.md` in place of the cost |
+| `SL_AGY_BIN` | `agy` on `PATH`, else `~/.local/bin/agy` | Path to the agy binary |
+| `SL_AGY_TTL` | `180` | Seconds between background agy `/usage` refreshes |
 
-Colors, thresholds, mascots, cat moods: each is a short `case` block in ~300 lines of commented bash. Make it yours.
+Colors, thresholds and layout are short, commented blocks of bash. Make it yours.
 
 ---
 
