@@ -15,7 +15,7 @@ IFS=$'\x1f' read -r dir model cpct r5 r5reset r7 r7reset eff ladd lrem sid cost 
   def q_wk: if is_gemini then .quota["gemini-weekly"] else .quota["3p-weekly"] end;
   [ .workspace.current_dir // .cwd // "",
     .model.display_name // .model.id // "",
-    (.context_window.used_percentage        // "" | tostring),
+    (.context_window.used_percentage        // (if .context_window.total_input_tokens != null and .context_window.context_window_size != null and .context_window.context_window_size > 0 then ((.context_window.total_input_tokens / .context_window.context_window_size) * 100) elif .context_window.used_tokens != null and .context_window.context_window_size != null and .context_window.context_window_size > 0 then ((.context_window.used_tokens / .context_window.context_window_size) * 100) elif .context_window.current_usage != null and .context_window.context_window_size != null and .context_window.context_window_size > 0 then ((.context_window.current_usage / .context_window.context_window_size) * 100) else "" end) // "" | tostring),
     (.rate_limits.five_hour.used_percentage // (if q_5h.remaining_fraction != null then ((1 - q_5h.remaining_fraction) * 100) else "" end) // "" | tostring),
     (.rate_limits.five_hour.resets_at       // (if q_5h.reset_in_seconds != null then (now + q_5h.reset_in_seconds | floor) else "" end) // "" | tostring),
     (.rate_limits.seven_day.used_percentage // (if q_wk.remaining_fraction != null then ((1 - q_wk.remaining_fraction) * 100) else "" end) // "" | tostring),
